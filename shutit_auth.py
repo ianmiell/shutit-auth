@@ -96,6 +96,52 @@ end''')
 			# https://help.ubuntu.com/lts/serverguide/openldap-server.html
 			# TODO: set up people, oauth, saml
 			shutit.install('slapd ldap-utils')
+			#shutit.pause_point(' https://unix.stackexchange.com/questions/96215/feeding-input-values-to-dpkg-reconfigure-in-a-non-interactive-way')
+			shutit.send('dpkg-reconfigure -fnoninteractive slapd')
+			# https://www.digitalocean.com/community/tutorials/how-to-change-account-passwords-on-an-openldap-server
+			password = '12345'
+			shutit.send_file('newpasswd.ldif','''
+dn: olcDatabase={1}mdb,cn=config
+changetype: modify
+replace: olcRootPW
+olcRootPW: {SSHA}iGjncj1i1qaTGtWYv58KYzJ+mmTONUBT''')
+			shutit.send('ldapmodify -H ldapi:// -Y EXTERNAL -f newpasswd.ldif')
+			shutit.send('ldapsearch -x -LLL -H ldap:/// -b dc=vagrant,dc=test dn')
+			shutit.send_file('add_content.ldif','''dn: ou=People,dc=vagrant,dc=test
+objectClass: organizationalUnit
+ou: People
+
+dn: ou=Groups,dc=vagrant,dc=test
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=miners,ou=Groups,dc=vagrant,dc=test
+objectClass: posixGroup
+cn: miners
+gidNumber: 5000
+
+dn: uid=john,ou=People,dc=vagrant,dc=test
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: john
+sn: Doe
+givenName: John
+cn: John Doe
+displayName: John Doe
+uidNumber: 10000
+gidNumber: 5000
+userPassword: johnldap
+gecos: John Doe
+loginShell: /bin/bash
+homeDirectory: /home/john''')
+			shutit.multisend('ldapadd -x -D cn=admin,dc=vagrant,dc=test -W -f add_content.ldif',{'ass':password})
+			shutit.send("ldapsearch -x -LLL -b dc=vagrant,dc=test 'uid=john' cn gidNumber")
+
+			shutit.send("ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:/// -b cn=config '(olcDatabase={1}mdb)' olcAccess # acl of mdb database")
+			shutit.send("ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:/// -b cn=config '(olcDatabase={0}config)' olcAccess # the acl config db")
+			shutit.send("ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:/// -b cn=config '(olcAccess=*)' olcAccess olcSuffix # all the acls")
+
 			shutit.pause_point('set up')
 			shutit.logout()
 			shutit.logout()
