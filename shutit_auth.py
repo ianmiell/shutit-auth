@@ -93,6 +93,10 @@ end''')
 			shutit.logout()
 			shutit.login(command='vagrant ssh ' + sorted(machines.keys())[0],check_sudo=False)
 			shutit.login(command='sudo su -',password='vagrant',check_sudo=False)
+
+			################################################################################
+			# LDAP
+			################################################################################
 			# https://help.ubuntu.com/lts/serverguide/openldap-server.html
 			# TODO: set up people, oauth, saml
 			shutit.install('slapd ldap-utils')
@@ -140,9 +144,68 @@ homeDirectory: /home/john''')
 
 			shutit.send("ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:/// -b cn=config '(olcDatabase={1}mdb)' olcAccess # acl of mdb database")
 			shutit.send("ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:/// -b cn=config '(olcDatabase={0}config)' olcAccess # the acl config db")
-			shutit.send("ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:/// -b cn=config '(olcAccess=*)' olcAccess olcSuffix # all the acls")
+			shutit.send("ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:/// -b cn=config '(olcAccess=*)' olcAccess olcSuffix # all the acls")
+			shutit.send_file('logging.ldif','''dn: cn=config
+changetype: modify
+replace: olcLogLevel
+olcLogLevel: stats''')
+			shutit.send('ldapmodify -Q -Y EXTERNAL -H ldapi:/// -f logging.ldif')
+			# in this verbose mode your host's syslog engine (rsyslog) may have a hard time keeping up and may drop messages:
 
-			shutit.pause_point('set up')
+			# rsyslogd-2177: imuxsock lost 228 messages from pid 2547 due to rate-limiting
+			# You may consider a change to rsyslog's configuration. In /etc/rsyslog.conf, put:
+			# 
+			# # Disable rate limiting
+			# # (default is 200 messages in 5 seconds; below we make the 5 become 0)
+			# $SystemLogRateLimitInterval 0
+			# and restart the daemon
+
+			# TLS: skipped - note you do not need ldaps://!
+			# LDAP over TLS/SSL (ldaps://) is deprecated in favour of StartTLS. The latter refers to an existing LDAP session (listening on TCP port 389) becoming protected by TLS/SSL whereas LDAPS, like HTTPS, is a distinct encrypted-from-the-start protocol that operates over TCP port 636.
+
+			#LDAPAUTH
+			#shutit.install('libnss-ldap')
+			shutit.multisend('DEBIAN_FRONTEND=text apt install -y libnss-ldap',{'LDAP server Uniform Resource Identifier':'ldap://localhost:389','Distinguished name of the search base:':'dc=vagrant,dc=test','LDAP version to use:':'3','Make local root Database admin:':'no','Does the LDAP database require login':'no'})
+			shutit.send('auth-client-config -t nss -p lac_ldap')
+#   44  vi /etc/ldapscripts/ldapscripts.conf 
+			shutit.multisend('DEBIAN_FRONTEND=text pam-auth-update',{'PAM profiles to enable:':'1 2 3 4'})
+			shutit.install('ldapscripts')
+			shutit.send('''cat >  /etc/ldapscripts/ldapscripts.conf << END
+SERVER=localhost
+BINDDN='cn=admin,dc=vagrant,dc=test'
+BINDPWDFILE="/etc/ldapscripts/ldapscripts.passwd"
+SUFFIX='dc=vagrant,dc=test'
+GSUFFIX='ou=Groups'
+USUFFIX='ou=People'
+MSUFFIX='ou=Computers'
+GIDSTART=10000
+UIDSTART=10000
+MIDSTART=10000
+END''')
+			shutit.send('''sh -c "echo -n '12345' > /etc/ldapscripts/ldapscripts.passwd"''')
+			shutit.send('chmod 400 /etc/ldapscripts/ldapscripts.passwd')
+   			shutit.send('ldapadduser george root')
+			# Workaround: https://ubuntuforums.org/showthread.php?t=1488232
+			shutit.send('''cat > /usr/share/ldapscripts/runtime.debian << END
+# Various binaries used within scripts
+LDAPSEARCHBIN=`which ldapsearch`
+LDAPADDBIN=`which ldapadd`
+LDAPDELETEBIN=`which ldapdelete`
+LDAPMODIFYBIN=`which ldapmodify`
+LDAPMODRDNBIN=`which ldapmodrdn`
+LDAPPASSWDBIN=`which ldappasswd`
+END''')
+   			shutit.multisend('ldapsetpasswd george',{'New Password':'12345'})
+			shutit.login('ssh george@localhost',password='12345')
+			shutit.logout()
+			################################################################################
+			# SAML - but what is it? Just an authentication method?
+			# https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language
+			# https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language#/media/File:Saml2-browser-sso-redirect-post.png
+			# SAML vs OAUTH: https://dzone.com/articles/saml-versus-oauth-which-one
+			# https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-simplesamlphp-for-saml-authentication-on-ubuntu-16-04
+			################################################################################
+			
 			shutit.logout()
 			shutit.logout()
 		return True
