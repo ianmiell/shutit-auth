@@ -95,7 +95,7 @@ end''')
 			shutit.login(command='sudo su -',password='vagrant',check_sudo=False)
 
 			################################################################################
-			# LDAP
+			#LDAP
 			################################################################################
 			# https://help.ubuntu.com/lts/serverguide/openldap-server.html
 			# TODO: set up people, oauth, saml
@@ -170,7 +170,7 @@ olcLogLevel: stats''')
 #   44  vi /etc/ldapscripts/ldapscripts.conf 
 			shutit.multisend('DEBIAN_FRONTEND=text pam-auth-update',{'PAM profiles to enable:':'1 2 3 4'})
 			shutit.install('ldapscripts')
-			shutit.send('''cat >  /etc/ldapscripts/ldapscripts.conf << END
+			shutit.send('''cat >>  /etc/ldapscripts/ldapscripts.conf << END
 SERVER=localhost
 BINDDN='cn=admin,dc=vagrant,dc=test'
 BINDPWDFILE="/etc/ldapscripts/ldapscripts.passwd"
@@ -185,25 +185,25 @@ END''')
 			shutit.send('''sh -c "echo -n '12345' > /etc/ldapscripts/ldapscripts.passwd"''')
 			shutit.send('chmod 400 /etc/ldapscripts/ldapscripts.passwd')
    			shutit.send('ldapadduser george root')
-			# Workaround: https://ubuntuforums.org/showthread.php?t=1488232
-			shutit.send('''cat > /usr/share/ldapscripts/runtime.debian << END
-# Various binaries used within scripts
-LDAPSEARCHBIN=`which ldapsearch`
-LDAPADDBIN=`which ldapadd`
-LDAPDELETEBIN=`which ldapdelete`
-LDAPMODIFYBIN=`which ldapmodify`
-LDAPMODRDNBIN=`which ldapmodrdn`
-LDAPPASSWDBIN=`which ldappasswd`
-END''')
+#			# Workaround: https://ubuntuforums.org/showthread.php?t=1488232
+#			shutit.send('''cat >> /usr/share/ldapscripts/runtime.debian << END
+## Various binaries used within scripts
+#LDAPSEARCHBIN=`which ldapsearch`
+#LDAPADDBIN=`which ldapadd`
+#LDAPDELETEBIN=`which ldapdelete`
+#LDAPMODIFYBIN=`which ldapmodify`
+#LDAPMODRDNBIN=`which ldapmodrdn`
+#LDAPPASSWDBIN=`which ldappasswd`
+#END''')
    			shutit.multisend('ldapsetpasswd george',{'New Password':'12345'})
 			shutit.login('ssh george@localhost',password='12345')
 			shutit.logout()
 			################################################################################
-			# SAML - but what is it? Just an authentication method?
-			# https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language
-			# https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language#/media/File:Saml2-browser-sso-redirect-post.png
-			# SAML vs OAUTH: https://dzone.com/articles/saml-versus-oauth-which-one
-			# https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-simplesamlphp-for-saml-authentication-on-ubuntu-16-04
+			#SAML - but what is it? Just an authentication method?
+			#https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language
+			#https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language#/media/File:Saml2-browser-sso-redirect-post.png
+			#SAML vs OAUTH: https://dzone.com/articles/saml-versus-oauth-which-one
+			#https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-simplesamlphp-for-saml-authentication-on-ubuntu-16-04
 			################################################################################
 			
 			shutit.logout()
